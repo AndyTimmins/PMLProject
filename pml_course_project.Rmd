@@ -1,0 +1,206 @@
+---
+title: 'Practical Machine Learning Course Project'
+output: 
+  html_document:
+    toc: true
+    theme: united
+---
+
+
+
+## Introduction
+
+
+The aim of this course project is to test whether a Recursive partitioning for classification, regression and survival trees (rpart) model can be used to predict the performance of certain activities give n provided training and test data sets (see section Data Sources for details). The data was generated during a study conducted by Ugulino et al in 2012 (see section Data Sources for full refernce and citation details). The study is relevant to the field of Human Activity Recognition - HAR. The data was collected from  accelerometers attached to the belt, forearm, arm, and dumbell of 6 people who  were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+
+
+## Data Sources
+
+Training data URL: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+Test data URL: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+Citation URL: [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har)
+
+Reference: Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6. 
+
+
+
+
+
+## Methodology For rpart
+
+
+### Load The Core  ML Package and set seed
+```
+library(caret)
+library(rpart)
+library(rattle)
+set.seed(999)
+```
+ 
+ 
+### Load The Training & Test Data Sets
+```
+setwd("C:/Users/andy.timmins/Desktop")
+pmltraining <- read.csv("pml-training.csv", stringsAsFactors=FALSE)
+pmltesting <- read.csv("pml-testing.csv", stringsAsFactors=FALSE)
+```
+
+
+
+### Partition the Data Sets (i.e.60% training, 40% testing:
+```
+inTrain <- createDataPartition(y=pmltraining$classe, p=0.6, list=FALSE)
+training <- training[inTrain, ]
+testing <- training[-inTrain, ]
+dim(training)
+dim(testing)
+```
+
+
+### Check for NearZeroVariance Variables
+```
+NZVsCheck <- nearZeroVar(training, saveMetrics=TRUE)
+dim(NZVsCheck)
+```
+
+
+### Get the NZV variables
+```
+NZVsvars <- names(training) %in% c("new_window", "kurtosis_roll_belt", "kurtosis_picth_belt",
+"kurtosis_yaw_belt", "skewness_roll_belt", "skewness_roll_belt.1", "skewness_yaw_belt",
+"max_yaw_belt", "min_yaw_belt", "amplitude_yaw_belt", "avg_roll_arm", "stddev_roll_arm",
+"var_roll_arm", "avg_pitch_arm", "stddev_pitch_arm", "var_pitch_arm", "avg_yaw_arm",
+"stddev_yaw_arm", "var_yaw_arm", "kurtosis_roll_arm", "kurtosis_picth_arm",
+"kurtosis_yaw_arm", "skewness_roll_arm", "skewness_pitch_arm", "skewness_yaw_arm",
+"max_roll_arm", "min_roll_arm", "min_pitch_arm", "amplitude_roll_arm", "amplitude_pitch_arm",
+"kurtosis_roll_dumbbell", "kurtosis_picth_dumbbell", "kurtosis_yaw_dumbbell", "skewness_roll_dumbbell",
+"skewness_pitch_dumbbell", "skewness_yaw_dumbbell", "max_yaw_dumbbell", "min_yaw_dumbbell",
+"amplitude_yaw_dumbbell", "kurtosis_roll_forearm", "kurtosis_picth_forearm", "kurtosis_yaw_forearm",
+"skewness_roll_forearm", "skewness_pitch_forearm", "skewness_yaw_forearm", "max_roll_forearm",
+"max_yaw_forearm", "min_roll_forearm", "min_yaw_forearm", "amplitude_roll_forearm",
+"amplitude_yaw_forearm", "avg_roll_forearm", "stddev_roll_forearm", "var_roll_forearm",
+"avg_pitch_forearm", "stddev_pitch_forearm", "var_pitch_forearm", "avg_yaw_forearm",
+"stddev_yaw_forearm", "var_yaw_forearm")
+```
+
+
+### Create new training data set without NZVs
+```
+training <- training[!NZVsvars]
+dim(training)
+```
+
+
+
+### Check for junk columns in training set
+```
+names(training)
+```
+
+
+
+### Remove junk columns from training set
+```
+training <- training[ -c(1:6)]
+```
+
+
+### Repeat above cleaning steps for the test data set Code not shown for compactness)
+
+
+
+### Fit the Decision Tree model
+```
+trainingFit <- rpart(classe ~ ., data=training, method="class")
+```
+
+
+### Do a nice plot
+```
+fancyRpartPlot(trainingFit)
+```
+
+
+### Run the predictions on the test data set
+```
+testingPredictions <- predict(trainingFit, testing, type = "class")
+```
+
+
+### Test accuracy using a confusion matrix on test data
+```
+confusionMatrix(testingPredictions, testing$classe)
+```
+
+
+### Overall Statistics                                          
+               Accuracy : 0.7314          
+                95% CI : (0.7178, 0.7446)
+                No Information Rate : 0.2783          
+                P-Value [Acc > NIR] : < 2.2e-16
+
+
+
+
+### Run the function to create files for assignment submission:
+```
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(testingPredictions)
+```
+
+
+
+
+
+## Test Random Forest model
+
+
+### Set-up the 5-fold cross validation using trainControl
+```
+trainCtrl <- trainControl(method = "cv", number = 5, allowParallel = TRUE, verboseIter = TRUE)
+```
+
+
+### IMPORTANT: Training data has classe so convert it to a factor before fitting model
+```
+training$classe <- factor(training$classe)
+```
+
+### Fit the RF model & time it
+```
+ptm <- proc.time()
+RFModelFit <- train(classe ~ ., data = training, method = "rf", trControl = trainCtrl)
+proc.time() - ptm
+```
+RF model fitting is pretty quick on my machine (Quad 3.0Ghz, 32Gb RAM, 64-bit)
+user  system elapsed 
+14.13    0.01   14.21
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
